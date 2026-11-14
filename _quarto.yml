@@ -1,0 +1,18 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "US Soccer & The Messi Effect"
+  navbar:
+    left:
+      - href: index.qmd
+        text: Home
+      - href: explorer.qmd
+        text: Team & Attendance Explorer
+      - href: messi-story.qmd
+        text: The 2023 Turning Point
+format:
+  html:
+    theme: cosmo
+    toc: true
