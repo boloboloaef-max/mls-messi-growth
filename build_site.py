@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import html
+import json
 from pathlib import Path
 
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -12,244 +12,118 @@ from plotly.subplots import make_subplots
 ROOT = Path(__file__).resolve().parent
 DOCS = ROOT / "docs"
 DATA_PATH = ROOT / "mls_matches.csv"
+MESSI_CUTOFF = pd.Timestamp("2023-07-21")
 REQUIRED_COLUMNS = {
-    "season",
-    "date",
-    "league",
-    "team1",
-    "team2",
-    "score1",
-    "score2",
-    "xg1",
-    "xg2",
-    "source",
+    "season", "date", "league", "team1", "team2", "score1", "score2",
+    "xg1", "xg2", "source",
 }
 
 NAV_ITEMS = [
     ("index.html", "Home"),
-    ("explorer.html", "Club & Season Explorer"),
-    ("inter-miami-story.html", "The Inter Miami Turning Point"),
-    ("tactical-trends.html", "Home Advantage & Scoring Trends"),
+    ("scoring-xg.html", "Scoring & xG"),
+    ("messi-impact.html", "Messi Impact"),
+    ("clubs-dynamics.html", "Club & League Dynamics"),
+    ("explorer.html", "Match Explorer"),
+    ("about.html", "About"),
 ]
+
+PINK = "#E91E63"
+PINK_LIGHT = "#F7B5CD"
+NAVY = "#0F172A"
+SLATE = "#475569"
+TEAL = "#0EA5E9"
+MUTED = "#64748B"
 
 STYLE = """
 <style>
   :root {
     color-scheme: light;
-    --ink: #13231f;
-    --muted: #566862;
-    --paper: #f5f6f1;
-    --card: #ffffff;
-    --line: #dce3dc;
-    --forest: #174e3c;
-    --lime: #d9f36a;
-    --coral: #e85c4a;
-    --shadow: 0 16px 44px rgba(21, 48, 37, .08);
+    --ink: #0f172a;
+    --muted: #64748b;
+    --paper: #f3f6fa;
+    --card: #fff;
+    --line: #e2e8f0;
+    --navy: #0f172a;
+    --pink: #e91e63;
+    --pink-soft: #f7b5cd;
+    --teal: #0ea5e9;
+    --shadow: 0 12px 32px rgba(15, 23, 42, .07);
   }
   * { box-sizing: border-box; }
   body {
-    margin: 0;
-    background: var(--paper);
-    color: var(--ink);
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-      "Segoe UI", sans-serif;
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   a { color: inherit; }
-  .site-header {
-    position: sticky;
-    z-index: 20;
-    top: 0;
-    background: rgba(19, 35, 31, .97);
-    color: #fff;
-    box-shadow: 0 5px 24px rgba(0, 0, 0, .12);
-  }
-  .nav-wrap {
-    width: min(1240px, calc(100% - 48px));
-    min-height: 76px;
-    margin: 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 24px;
-  }
-  .brand {
-    flex: 0 0 auto;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 800;
-    letter-spacing: .12em;
-    line-height: 1.25;
-    text-decoration: none;
-    text-transform: uppercase;
-  }
-  .brand span { display: block; color: var(--lime); font-size: 10px; }
-  .nav-links { display: flex; align-items: center; gap: 7px; }
-  .nav-links a {
-    border-radius: 999px;
-    color: #e2e8e4;
-    font-size: 12px;
-    font-weight: 650;
-    padding: 10px 12px;
-    text-decoration: none;
-    white-space: nowrap;
-  }
-  .nav-links a:hover, .nav-links a[aria-current="page"] {
-    background: rgba(217, 243, 106, .14);
-    color: var(--lime);
-  }
-  main { min-height: calc(100vh - 190px); }
-  .wrap { width: min(1120px, calc(100% - 48px)); margin: 0 auto; }
-  .hero { padding: 72px 0 34px; }
-  .eyebrow {
-    color: var(--forest);
-    font-size: 11px;
-    font-weight: 850;
-    letter-spacing: .16em;
-    text-transform: uppercase;
-  }
-  h1 {
-    max-width: 930px;
-    margin: 15px 0 18px;
-    font-size: clamp(38px, 6vw, 70px);
-    letter-spacing: -.055em;
-    line-height: .99;
-  }
-  h2 { margin: 0 0 12px; font-size: clamp(24px, 3.2vw, 34px); letter-spacing: -.035em; }
-  h3 { margin: 0 0 9px; font-size: 18px; letter-spacing: -.02em; }
-  p { color: #34443e; font-size: 16px; line-height: 1.75; }
-  .dek { max-width: 780px; margin: 0; color: var(--muted); font-size: 18px; line-height: 1.7; }
-  .section { padding: 24px 0 44px; }
-  .section-heading {
-    display: flex;
-    align-items: end;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 18px;
-  }
-  .section-heading p { max-width: 650px; margin: 0; color: var(--muted); }
-  .kpis {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 14px;
-    margin: 18px 0 32px;
-  }
-  .kpi, .panel, .chart-card, .table-card, .story-copy {
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    background: var(--card);
-    box-shadow: var(--shadow);
-  }
-  .kpi { min-height: 143px; padding: 20px; }
-  .kpi-label { color: var(--muted); font-size: 12px; font-weight: 750; line-height: 1.4; }
-  .kpi-value { margin: 13px 0 5px; font-size: clamp(27px, 3vw, 37px); font-weight: 830; letter-spacing: -.055em; }
-  .kpi-note { color: #718078; font-size: 11px; line-height: 1.45; }
-  .chart-card { overflow: hidden; padding: 13px 13px 4px; }
-  .chart-caption {
-    display: flex;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 13px 15px 15px;
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.55;
-  }
+  .site-header { position: sticky; z-index: 20; top: 0; background: rgba(15, 23, 42, .97); color: #fff; box-shadow: 0 5px 24px rgba(0,0,0,.12); }
+  .nav-wrap { width: min(1320px, calc(100% - 44px)); min-height: 72px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+  .brand { flex: 0 0 auto; color: #fff; font-size: 13px; font-weight: 850; letter-spacing: .1em; line-height: 1.25; text-decoration: none; text-transform: uppercase; }
+  .brand span { display: block; color: var(--pink-soft); font-size: 10px; letter-spacing: .08em; }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a { border-radius: 999px; color: #dbe3ef; font-size: 12px; font-weight: 700; padding: 10px 12px; text-decoration: none; white-space: nowrap; }
+  .nav-links a:hover, .nav-links a[aria-current="page"] { background: rgba(233,30,99,.17); color: #ffc0d5; }
+  main { min-height: calc(100vh - 180px); }
+  .wrap { width: min(1160px, calc(100% - 44px)); margin: 0 auto; }
+  .hero { padding: 58px 0 22px; }
+  .eyebrow { color: var(--pink); font-size: 11px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+  h1 { max-width: 970px; margin: 14px 0 15px; font-size: clamp(38px, 6vw, 68px); letter-spacing: -.055em; line-height: 1.02; }
+  h2 { margin: 0 0 10px; font-size: clamp(23px, 3vw, 32px); letter-spacing: -.04em; }
+  h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.02em; }
+  p { color: #334155; font-size: 15px; line-height: 1.72; }
+  .dek { max-width: 850px; margin: 0; color: #526176; font-size: 17px; line-height: 1.7; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 13px; margin: 16px 0 30px; }
+  .kpi, .panel, .chart-card, .table-card, .profile-card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+  .kpi { min-height: 132px; padding: 18px 19px; transition: transform .18s ease, box-shadow .18s ease; }
+  .kpi:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(15,23,42,.11); }
+  .kpi-label { color: var(--muted); font-size: 11px; font-weight: 800; line-height: 1.4; }
+  .kpi-value { margin: 12px 0 5px; font-size: clamp(25px, 3vw, 35px); font-weight: 850; letter-spacing: -.055em; }
+  .kpi-note { color: #738197; font-size: 10px; line-height: 1.5; }
+  .section { padding: 18px 0 30px; }
+  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 15px; }
+  .section-heading p { max-width: 650px; margin: 0; color: var(--muted); font-size: 13px; }
+  .chart-card { overflow: hidden; padding: 9px 10px 2px; }
+  .chart-caption { display: flex; justify-content: space-between; gap: 18px; padding: 10px 14px 13px; color: var(--muted); font-size: 11px; line-height: 1.55; }
   .chart-caption strong { color: var(--ink); }
-  .panel { padding: 24px; }
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: end;
-    gap: 14px 20px;
-    margin: 21px 0 16px;
-  }
-  .control-label {
-    display: block;
-    margin-bottom: 7px;
-    color: var(--muted);
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-  }
-  select {
-    min-width: 250px;
-    border: 1px solid #cbd6ce;
-    border-radius: 10px;
-    background: #fff;
-    color: var(--ink);
-    font: inherit;
-    font-size: 14px;
-    padding: 11px 38px 11px 13px;
-  }
-  .button-group { display: flex; gap: 6px; }
-  .filter-button {
-    border: 1px solid #cbd6ce;
-    border-radius: 999px;
-    background: #fff;
-    color: var(--ink);
-    cursor: pointer;
-    font: inherit;
-    font-size: 12px;
-    font-weight: 750;
-    padding: 10px 14px;
-  }
-  .filter-button[aria-pressed="true"] { border-color: var(--forest); background: var(--forest); color: #fff; }
-  .filter-button:focus-visible, select:focus-visible, a:focus-visible {
-    outline: 3px solid var(--coral);
-    outline-offset: 3px;
-  }
-  .table-wrap { overflow-x: auto; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th, td { padding: 13px 14px; border-bottom: 1px solid #e8ede8; text-align: left; white-space: nowrap; }
-  th { position: sticky; top: 0; background: #f1f5f0; color: #53635b; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  .panel { padding: 20px; }
+  .insight { margin: 12px 0 0; padding: 13px 15px; border-left: 3px solid var(--pink); border-radius: 0 10px 10px 0; background: #fff; color: #45546a; font-size: 13px; line-height: 1.65; }
+  .data-note { margin: 18px 0 32px; border-left: 4px solid var(--teal); border-radius: 0 10px 10px 0; background: #e8f5fb; color: #42566a; font-size: 12px; line-height: 1.7; padding: 13px 16px; }
+  .data-note a { color: #075985; font-weight: 750; }
+  .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 18px; margin: 15px 0; }
+  .control-label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+  select { min-width: 190px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; padding: 10px 32px 10px 12px; }
+  .table-wrap { max-height: 580px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 11px 12px; border-bottom: 1px solid #e8edf3; text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; z-index: 1; background: #f1f5f9; color: #526176; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
   td.num, th.num { text-align: right; }
-  tbody tr:hover { background: #f8faf6; }
-  .story-copy { margin: 22px 0 34px; padding: 24px 30px; }
-  .story-copy p { margin: 0 0 16px; }
-  .story-copy p:last-child { margin-bottom: 0; }
-  .data-note {
-    margin: 22px 0 36px;
-    border-left: 4px solid var(--forest);
-    background: #eaf0e8;
-    color: #45554e;
-    font-size: 13px;
-    line-height: 1.7;
-    padding: 14px 17px;
-  }
-  .data-note a { color: var(--forest); font-weight: 700; }
-  .site-footer { margin-top: 40px; background: #13231f; color: #d5dfd9; }
-  .footer-inner {
-    width: min(1120px, calc(100% - 48px));
-    margin: 0 auto;
-    padding: 24px 0 30px;
-    display: flex;
-    justify-content: space-between;
-    gap: 20px;
-    font-size: 11px;
-    line-height: 1.7;
-  }
-  .footer-inner a { color: var(--lime); }
+  tbody tr:hover { background: #f8fafc; }
+  .profile-card { padding: 24px; }
+  .profile-card p { margin: 7px 0; }
+  .profile-links { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 22px; margin-top: 20px; }
+  .profile-links a { color: #be185d; font-weight: 700; overflow-wrap: anywhere; }
+  .site-footer { margin-top: 30px; background: var(--navy); color: #d6deea; }
+  .footer-inner { width: min(1160px, calc(100% - 44px)); margin: auto; padding: 22px 0 27px; display: flex; justify-content: space-between; gap: 20px; font-size: 10px; line-height: 1.7; }
+  .footer-inner a { color: #f9a8c4; }
   .plotly-graph-div { width: 100% !important; }
-  @media (max-width: 900px) {
-    .nav-wrap { align-items: flex-start; flex-direction: column; gap: 10px; padding: 17px 0; }
-    .nav-links { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  @media (max-width: 980px) {
+    .nav-wrap { align-items: flex-start; flex-direction: column; gap: 9px; padding: 15px 0 12px; }
+    .nav-links { width: 100%; overflow-x: auto; padding-bottom: 3px; }
     .nav-links a { flex: 0 0 auto; }
-    .hero { padding-top: 48px; }
-    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .hero { padding-top: 42px; }
+    .kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
   }
-  @media (max-width: 560px) {
-    .wrap, .nav-wrap, .footer-inner { width: min(100% - 30px, 1120px); }
-    .kpis { gap: 9px; }
-    .kpi { min-height: 126px; padding: 15px; }
-    .kpi-value { font-size: 28px; }
-    .section-heading { align-items: flex-start; flex-direction: column; }
-    .chart-card { padding: 5px 5px 0; }
-    .chart-caption { flex-direction: column; }
-    .panel { padding: 16px; }
-    .story-copy { padding: 20px; }
-    select { min-width: min(100%, 290px); }
-    .footer-inner { flex-direction: column; }
+  @media (max-width: 580px) {
+    .wrap, .nav-wrap, .footer-inner { width: min(100% - 28px, 1160px); }
+    .kpis { gap: 8px; }
+    .kpi { min-height: 115px; padding: 13px; }
+    .kpi-value { font-size: 26px; }
+    .section-heading, .footer-inner { align-items: flex-start; flex-direction: column; }
+    .chart-card { padding: 4px 4px 0; }
+    .chart-caption { flex-direction: column; gap: 4px; }
+    .panel, .profile-card { padding: 15px; }
+    .profile-links { grid-template-columns: 1fr; }
+    select { min-width: min(100%, 280px); }
   }
 </style>
 """
@@ -259,13 +133,12 @@ def load_matches() -> pd.DataFrame:
     if not DATA_PATH.is_file():
         raise FileNotFoundError(f"Required local match dataset not found: {DATA_PATH}")
     matches = pd.read_csv(DATA_PATH)
-    missing_columns = REQUIRED_COLUMNS - set(matches.columns)
-    if missing_columns:
-        raise ValueError(f"Dataset is missing columns: {', '.join(sorted(missing_columns))}")
+    missing = REQUIRED_COLUMNS - set(matches.columns)
+    if missing:
+        raise ValueError(f"Dataset is missing columns: {', '.join(sorted(missing))}")
     matches = matches.loc[matches["league"].eq("Major League Soccer")].copy()
-    if len(matches) < 1_000:
-        raise ValueError(f"Expected thousands of MLS matches; found only {len(matches):,}.")
-
+    if matches.empty:
+        raise ValueError("No Major League Soccer records were found.")
     matches["date"] = pd.to_datetime(matches["date"], errors="raise")
     matches["season"] = pd.to_numeric(matches["season"], errors="raise").astype(int)
     for column in ("score1", "score2", "xg1", "xg2"):
@@ -276,15 +149,30 @@ def load_matches() -> pd.DataFrame:
         raise ValueError("Match scores cannot be negative.")
     if matches["source"].isna().any():
         raise ValueError("Every match must have source attribution.")
-
     matches["total_goals"] = matches["score1"] + matches["score2"]
+    matches["goal_margin"] = matches["score1"] - matches["score2"]
     matches["xg_complete"] = matches[["xg1", "xg2"]].notna().all(axis=1)
     matches["total_xg"] = matches[["xg1", "xg2"]].sum(axis=1, min_count=2)
-    matches["home_xg"] = matches["xg1"].where(matches["xg_complete"])
-    matches["away_xg"] = matches["xg2"].where(matches["xg_complete"])
-    if not matches["xg_complete"].any():
-        raise ValueError("The dataset has no complete expected-goals observations.")
     return matches.sort_values(["date", "team1", "team2"]).reset_index(drop=True)
+
+
+def appearances(matches: pd.DataFrame) -> pd.DataFrame:
+    home = pd.DataFrame({
+        "date": matches["date"], "season": matches["season"], "club": matches["team1"],
+        "venue": "Home", "gf": matches["score1"], "ga": matches["score2"],
+        "xgf": matches["xg1"], "xga": matches["xg2"],
+    })
+    away = pd.DataFrame({
+        "date": matches["date"], "season": matches["season"], "club": matches["team2"],
+        "venue": "Away", "gf": matches["score2"], "ga": matches["score1"],
+        "xgf": matches["xg2"], "xga": matches["xg1"],
+    })
+    result = pd.concat([home, away], ignore_index=True)
+    result["goal_diff"] = result["gf"] - result["ga"]
+    result["win"] = result["goal_diff"] > 0
+    result["draw"] = result["goal_diff"] == 0
+    result["loss"] = result["goal_diff"] < 0
+    return result
 
 
 def site_nav(active_page: str) -> str:
@@ -294,628 +182,597 @@ def site_nav(active_page: str) -> str:
         for href, label in NAV_ITEMS
     )
     return f"""
-<header class="site-header">
-  <div class="nav-wrap">
-    <a class="brand" href="index.html">The MLS Matchbook<span>US Soccer · Data &amp; analysis</span></a>
-    <nav class="nav-links" aria-label="Main navigation">{links}</nav>
-  </div>
-</header>
+<header class="site-header"><div class="nav-wrap">
+  <a class="brand" href="index.html">MLS · Matchbook<span>League evolution, in the match record</span></a>
+  <nav class="nav-links" aria-label="Main navigation">{links}</nav>
+</div></header>
 """
 
 
 def page(title: str, active_page: str, body: str) -> str:
-    return f"""<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A match-by-match study of MLS scoring, club performance and Lionel Messi's impact.">
-  <title>{html.escape(title)} | The MLS Matchbook</title>
-  {STYLE.strip()}
-</head>
-<body>
-  {site_nav(active_page).strip()}
+    document = f"""<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An observational MLS match analysis of scoring, clubs, expected goals and Lionel Messi's arrival, 2017–2025.">
+  <title>{html.escape(title)} | MLS Matchbook</title>{STYLE}
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head><body>
+  {site_nav(active_page)}
   <main>{body}</main>
-  <footer class="site-footer">
-    <div class="footer-inner">
-      <div>Matchbook · An observational look at MLS, 2017–2025.<br>Scores describe what happened; they do not establish why.</div>
-      <div>Data: <a href="https://github.com/naspli/dataviz/tree/master/soccer-spi/data-20230101">FiveThirtyEight SPI archive</a>
-      · <a href="https://site.api.espn.com/apis/site/v2/sports/soccer/usa.1/scoreboard?dates=2025&amp;limit=1000">ESPN MLS scoreboard</a></div>
-    </div>
-  </footer>
-</body>
-</html>
+  <footer class="site-footer"><div class="footer-inner">
+    <div>MLS Matchbook · Observational analysis, 2017–2025.<br>Match outcomes describe what happened; they do not establish why.</div>
+    <div>Dataset: <a href="https://github.com/boloboloaf-hub/mls-messi-growth/blob/main/mls_matches.csv">mls_matches.csv</a>
+    · <a href="https://github.com/boloboloaf-hub/mls-messi-growth">Project repository</a></div>
+  </div></footer>
+</body></html>
 """
+    return "\n".join(line.rstrip() for line in document.splitlines()) + "\n"
 
 
-def plot_html(
-    figure: go.Figure,
-    div_id: str,
-    *,
-    static: bool = False,
-    height: int = 570,
-) -> str:
+def plot_html(figure: go.Figure, div_id: str, height: int = 480) -> str:
+    for trace in figure.data:
+        if not trace.hovertemplate:
+            trace.hovertemplate = "%{x}<br>%{y}<extra></extra>"
     figure.update_layout(
-        template="plotly_white",
-        height=height,
-        autosize=True,
-        margin=dict(l=56, r=28, t=48, b=55),
-        paper_bgcolor="white",
-        plot_bgcolor="white",
-        font=dict(family="Inter, system-ui, sans-serif", color="#263b33", size=12),
-        hoverlabel=dict(bgcolor="#13231f", font_color="white"),
+        template="plotly_white", height=height, autosize=True,
+        margin=dict(l=56, r=24, t=55, b=55),
+        paper_bgcolor="white", plot_bgcolor="white",
+        font=dict(family="Inter, system-ui, sans-serif", color=NAVY, size=11),
+        hoverlabel=dict(bgcolor=NAVY, font_color="white"),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0),
     )
     return figure.to_html(
-        full_html=False,
-        include_plotlyjs="cdn",
-        div_id=div_id,
-        config={
-            "responsive": True,
-            "displaylogo": False,
-            "displayModeBar": not static,
-            "staticPlot": static,
-        },
+        full_html=False, include_plotlyjs=False, div_id=div_id,
+        config={"responsive": True, "displaylogo": False, "displayModeBar": True},
     )
 
 
-def home_figure(matches: pd.DataFrame) -> go.Figure:
-    figure = go.Figure()
-    hover = matches[["team1", "team2", "score1", "score2"]].to_numpy()
-    figure.add_trace(
-        go.Scattergl(
-            x=matches["date"],
-            y=matches["total_goals"],
-            customdata=hover,
-            mode="markers",
-            name="Match goals · all records",
-            marker=dict(color="#174e3c", size=5, opacity=0.2),
-            hovertemplate=(
-                "%{x|%b %d, %Y}<br>%{customdata[0]} – %{customdata[1]}"
-                "<br>Score: %{customdata[2]:.0f}–%{customdata[3]:.0f}"
-                "<br>Total goals: %{y:.0f}<extra></extra>"
-            ),
-        )
+def page_hero(eyebrow: str, heading: str, dek: str) -> str:
+    return (
+        '<section class="hero"><div class="eyebrow">' + eyebrow + "</div>"
+        f"<h1>{heading}</h1><p class=\"dek\">{dek}</p></section>"
     )
 
-    xg_matches = matches.loc[matches["xg_complete"]]
-    xg_hover = xg_matches[["team1", "team2", "xg1", "xg2"]].to_numpy()
-    figure.add_trace(
-        go.Scattergl(
-            x=xg_matches["date"],
-            y=xg_matches["total_xg"],
-            customdata=xg_hover,
-            mode="markers",
-            name="Expected goals · complete xG records",
-            marker=dict(color="#e85c4a", size=5, opacity=0.16, symbol="diamond"),
-            hovertemplate=(
-                "%{x|%b %d, %Y}<br>%{customdata[0]} – %{customdata[1]}"
-                "<br>Home xG: %{customdata[2]:.2f}"
-                "<br>Away xG: %{customdata[3]:.2f}"
-                "<br>Combined xG: %{y:.2f}<extra></extra>"
-            ),
-        )
-    )
 
-    by_season = matches.groupby("season", as_index=False).agg(
-        avg_goals=("total_goals", "mean")
-    )
-    xg_by_season = (
-        xg_matches.groupby("season", as_index=False)
-        .agg(avg_xg=("total_xg", "mean"))
-    )
-    by_season["season_date"] = pd.to_datetime(by_season["season"].astype(str) + "-07-01")
-    xg_by_season["season_date"] = pd.to_datetime(
-        xg_by_season["season"].astype(str) + "-07-01"
-    )
-    figure.add_trace(
-        go.Scatter(
-            x=by_season["season_date"],
-            y=by_season["avg_goals"],
-            mode="lines+markers",
-            name="Season average · goals",
-            line=dict(color="#174e3c", width=3),
-            marker=dict(size=8),
-            hovertemplate="Season %{x|%Y}<br>Goals per match: %{y:.2f}<extra></extra>",
-        )
-    )
-    figure.add_trace(
-        go.Scatter(
-            x=xg_by_season["season_date"],
-            y=xg_by_season["avg_xg"],
-            mode="lines+markers",
-            name="Season average · xG",
-            line=dict(color="#e85c4a", width=3, dash="dash"),
-            marker=dict(size=8, symbol="diamond"),
-            hovertemplate="Season %{x|%Y}<br>Expected goals per match: %{y:.2f}<extra></extra>",
-        )
-    )
-    figure.update_layout(
-        title=dict(text="Every match, one changing scoring story", x=0.02, xanchor="left"),
-        xaxis=dict(title="Match date", rangeslider=dict(visible=True), showgrid=False),
-        yaxis=dict(title="Combined goals or expected goals per match", rangemode="tozero"),
-        hovermode="closest",
-    )
-    return figure
-
-
-def team_performance(matches: pd.DataFrame) -> pd.DataFrame:
-    home = pd.DataFrame(
-        {
-            "season": matches["season"],
-            "club": matches["team1"],
-            "venue": "Home",
-            "goals_for": matches["score1"],
-            "goals_against": matches["score2"],
-            "xg_for": matches["home_xg"],
-        }
-    )
-    away = pd.DataFrame(
-        {
-            "season": matches["season"],
-            "club": matches["team2"],
-            "venue": "Away",
-            "goals_for": matches["score2"],
-            "goals_against": matches["score1"],
-            "xg_for": matches["away_xg"],
-        }
-    )
-    long = pd.concat([home, away], ignore_index=True)
-    long["win"] = long["goals_for"] > long["goals_against"]
-    grouped = (
-        long.groupby(["season", "club", "venue"], as_index=False)
-        .agg(
-            matches=("goals_for", "size"),
-            wins=("win", "sum"),
-            goals_per_match=("goals_for", "mean"),
-            xg_per_match=("xg_for", "mean"),
-            xg_matches=("xg_for", "count"),
-        )
-    )
-    grouped["win_rate"] = grouped["wins"] / grouped["matches"] * 100
-    return grouped
-
-
-def explorer_figure(performance: pd.DataFrame, clubs: list[str]) -> go.Figure:
-    palette = px.colors.qualitative.Alphabet
-    color_map = {club: palette[i % len(palette)] for i, club in enumerate(clubs)}
-    color_map["Inter Miami CF"] = "#e85c4a"
-    figure = go.Figure()
-    default_club = "Inter Miami CF" if "Inter Miami CF" in clubs else clubs[0]
-    for club in clubs:
-        for venue in ("Home", "Away"):
-            group = performance.loc[
-                (performance["club"] == club) & (performance["venue"] == venue)
-            ].sort_values("season")
-            customdata = [
-                [
-                    int(row.matches),
-                    row.win_rate,
-                    f"{row.xg_per_match:.2f}" if pd.notna(row.xg_per_match) else "not available",
-                    int(row.xg_matches),
-                ]
-                for row in group.itertuples()
-            ]
-            figure.add_trace(
-                go.Scatter(
-                    x=group["season"],
-                    y=group["goals_per_match"],
-                    customdata=customdata,
-                    mode="lines+markers",
-                    name=f"{club} · {venue.lower()}",
-                    meta={"club": club, "venue": venue},
-                    visible=club == default_club,
-                    line=dict(
-                        color=color_map[club],
-                        width=3 if club == default_club else 2,
-                        dash="solid" if venue == "Home" else "dash",
-                    ),
-                    marker=dict(size=8, symbol="circle" if venue == "Home" else "square"),
-                    hovertemplate=(
-                        "Season %{x}<br>Venue: "
-                        + venue.lower()
-                        + "<br>Average goals scored: %{y:.2f}"
-                        "<br>Win rate: %{customdata[1]:.1f}%"
-                        "<br>Average xG: %{customdata[2]}"
-                        "<br>Matches with xG: %{customdata[3]} of %{customdata[0]}"
-                        "<br>Matches: %{customdata[0]}<extra></extra>"
-                    ),
-                )
-            )
-    figure.update_layout(
-        title=dict(text="Season-by-season club output", x=0.02, xanchor="left"),
-        xaxis=dict(
-            title="Season",
-            dtick=1,
-            rangeslider=dict(visible=True),
-            range=[min(performance["season"]), max(performance["season"])],
-        ),
-        yaxis=dict(title="Goals scored per match", rangemode="tozero"),
-        hovermode="closest",
-        showlegend=False,
-    )
-    return figure
-
-
-def club_table(matches: pd.DataFrame, clubs: list[str]) -> str:
-    rows = []
-    for club in clubs:
-        home = matches.loc[matches["team1"].eq(club)]
-        away = matches.loc[matches["team2"].eq(club)]
-        games = len(home) + len(away)
-        wins = int((home["score1"] > home["score2"]).sum()) + int(
-            (away["score2"] > away["score1"]).sum()
-        )
-        goals = int(home["score1"].sum() + away["score2"].sum())
-        xg_total = float(home["home_xg"].sum() + away["away_xg"].sum())
-        xg_games = int(home["home_xg"].count() + away["away_xg"].count())
-        goals_avg = goals / games if games else 0
-        xg_avg = f"{xg_total / xg_games:.2f}" if xg_games else "—"
-        rows.append(
-            (club, games, f"{wins / games:.1%}" if games else "—", f"{goals_avg:.2f}", xg_avg, xg_games)
-        )
-    rows.sort(key=lambda row: (-row[1], row[0]))
-    body = "".join(
-        "<tr>"
-        f"<td>{html.escape(club)}</td>"
-        f'<td class="num">{games:,}</td>'
-        f'<td class="num">{win_rate}</td>'
-        f'<td class="num">{goals_avg}</td>'
-        f'<td class="num">{xg_avg}</td>'
-        f'<td class="num">{xg_games:,}</td>'
-        "</tr>"
-        for club, games, win_rate, goals_avg, xg_avg, xg_games in rows
-    )
+def kpi_cards(matches: pd.DataFrame, apps: pd.DataFrame, *, section: bool = True) -> str:
+    total_matches = len(matches)
+    goals = int(matches["total_goals"].sum())
+    xg_count = int(matches["xg_complete"].sum())
+    miami = apps.loc[apps["club"].eq("Inter Miami CF")].copy()
+    pre = miami.loc[miami["date"] < MESSI_CUTOFF, "gf"]
+    post = miami.loc[miami["date"] >= MESSI_CUTOFF, "gf"]
+    delta = post.mean() - pre.mean() if len(pre) and len(post) else float("nan")
+    delta_text = f"{delta:+.2f}" if pd.notna(delta) else "n/a"
+    opening = '<section class="kpis" aria-label="Dataset summary">' if section else '<div class="kpis" aria-label="Dataset summary">'
+    closing = "</section>" if section else "</div>"
     return f"""
-<div class="table-wrap">
-  <table>
-    <thead><tr>
-      <th>Club</th><th class="num">Matches</th><th class="num">Win rate</th>
-      <th class="num">Goals / match</th><th class="num">xG / match</th><th class="num">xG matches</th>
-    </tr></thead>
-    <tbody>{body}</tbody>
-  </table>
-</div>
-"""
+{opening}
+  <article class="kpi"><div class="kpi-label">MLS matches</div><div class="kpi-value">{total_matches:,}</div><div class="kpi-note">Observed completed matches · {matches.season.min()}–{matches.season.max()}</div></article>
+  <article class="kpi"><div class="kpi-label">Goals recorded</div><div class="kpi-value">{goals:,}</div><div class="kpi-note">Home and away score totals in the CSV</div></article>
+  <article class="kpi"><div class="kpi-label">Complete xG matches</div><div class="kpi-value">{xg_count:,}</div><div class="kpi-note">Both team xG values present; no missing xG imputed</div></article>
+  <article class="kpi"><div class="kpi-label">Inter Miami goals / match change</div><div class="kpi-value">{delta_text}</div><div class="kpi-note">Before vs. on/after 21 Jul 2023 · {len(pre)} vs. {len(post)} team appearances</div></article>
+{closing}"""
+
+
+def chart_section(kicker: str, title: str, description: str, chart: str, takeaway: str = "") -> str:
+    insight = f'<p class="insight">{takeaway}</p>' if takeaway else ""
+    return f"""
+<section class="section"><div class="section-heading"><div><div class="eyebrow">{kicker}</div><h2>{title}</h2></div><p>{description}</p></div>
+  <div class="chart-card">{chart}</div>{insight}
+</section>"""
+
+
+def home_season_chart(matches: pd.DataFrame) -> go.Figure:
+    summary = matches.groupby("season", as_index=False).agg(
+        matches=("total_goals", "size"),
+        home=("score1", "mean"),
+        away=("score2", "mean"),
+        total=("total_goals", "mean"),
+    )
+    fig = go.Figure()
+    for key, name, color in (("home", "Home goals / match", PINK), ("away", "Away goals / match", TEAL)):
+        fig.add_trace(go.Scatter(
+            x=summary["season"], y=summary[key], mode="lines+markers", name=name,
+            line=dict(color=color, width=3), marker=dict(size=8),
+            customdata=summary[["matches", "total"]].to_numpy(),
+            hovertemplate=f"Season %{{x}}<br>{name}: %{{y:.2f}}<br>Total goals / match: %{{customdata[1]:.2f}}<br>Matches: %{{customdata[0]}}<extra></extra>",
+        ))
+    fig.update_layout(title="Scoring output by season", hovermode="x unified")
+    fig.update_xaxes(title="Season", dtick=1)
+    fig.update_yaxes(title="Goals per match", rangemode="tozero")
+    fig.add_vline(x=2023, line_dash="dot", line_color=SLATE, annotation_text="Messi arrives July 2023")
+    return fig
+
+
+def home_results_chart(matches: pd.DataFrame) -> go.Figure:
+    rows = []
+    for season, group in matches.groupby("season", sort=True):
+        n = len(group)
+        rows.append({
+            "season": season, "matches": n,
+            "Home win": group["score1"].gt(group["score2"]).mean() * 100,
+            "Draw": group["score1"].eq(group["score2"]).mean() * 100,
+            "Away win": group["score1"].lt(group["score2"]).mean() * 100,
+        })
+    summary = pd.DataFrame(rows)
+    fig = go.Figure()
+    for label, color in (("Home win", PINK), ("Draw", MUTED), ("Away win", TEAL)):
+        fig.add_trace(go.Bar(
+            x=summary.season, y=summary[label], name=label,
+            marker_color=color, customdata=summary[["matches"]].to_numpy(),
+            hovertemplate=f"Season %{{x}}<br>{label}: %{{y:.1f}}%<br>Matches: %{{customdata[0]}}<extra></extra>",
+        ))
+    fig.update_layout(title="How each season's matches ended", barmode="stack", hovermode="x unified")
+    fig.update_xaxes(title="Season", dtick=1)
+    fig.update_yaxes(title="Share of matches", ticksuffix="%", range=[0, 100])
+    return fig
+
+
+def scoring_xg_charts(matches: pd.DataFrame) -> tuple[go.Figure, go.Figure, go.Figure]:
+    xgm = matches.loc[matches["xg_complete"]].copy()
+    seasonal = xgm.groupby("season", as_index=False).agg(
+        fixtures=("total_goals", "size"),
+        goals=("total_goals", "mean"),
+        xg=("total_xg", "mean"),
+    )
+    trend = go.Figure()
+    for column, label, color, dash in (
+        ("goals", "Actual goals per match", PINK, "solid"),
+        ("xg", "Combined xG per match", TEAL, "dash"),
+    ):
+        trend.add_trace(go.Scatter(
+            x=seasonal.season, y=seasonal[column], mode="lines+markers", name=label,
+            line=dict(color=color, width=3, dash=dash), marker=dict(size=8),
+            customdata=seasonal[["fixtures"]].to_numpy(),
+            hovertemplate=f"Season %{{x}}<br>{label}: %{{y:.2f}}<br>Complete xG matches: %{{customdata[0]}}<extra></extra>",
+        ))
+    trend.update_layout(title="Goals and expected goals on the same fixtures", hovermode="x unified")
+    trend.update_xaxes(title="Season", dtick=1)
+    trend.update_yaxes(title="Per match", rangemode="tozero")
+
+    sides = pd.concat([
+        xgm[["date", "season", "team1", "team2", "score1", "xg1"]].rename(
+            columns={"team1": "club", "team2": "opponent", "score1": "goals", "xg1": "xg"}
+        ).assign(venue="Home"),
+        xgm[["date", "season", "team2", "team1", "score2", "xg2"]].rename(
+            columns={"team2": "club", "team1": "opponent", "score2": "goals", "xg2": "xg"}
+        ).assign(venue="Away"),
+    ], ignore_index=True)
+    scatter = go.Figure()
+    for venue, color in (("Home", PINK), ("Away", TEAL)):
+        side = sides.loc[sides.venue.eq(venue)]
+        scatter.add_trace(go.Scattergl(
+            x=side.xg, y=side.goals, mode="markers", name=venue,
+            marker=dict(color=color, size=5, opacity=.48),
+            customdata=side[["club", "opponent", "date", "season"]].to_numpy(),
+            hovertemplate="%{customdata[0]} vs %{customdata[1]} · %{customdata[2]|%b %d, %Y}<br>Season %{customdata[3]} · %{fullData.name}<br>xG: %{x:.2f}<br>Goals: %{y:.0f}<extra></extra>",
+        ))
+    extent = max(float(sides["xg"].max()), float(sides["goals"].max()))
+    scatter.add_trace(go.Scatter(
+        x=[0, extent], y=[0, extent], mode="lines", name="Goals = xG",
+        line=dict(color=SLATE, dash="dot"), hovertemplate="Reference: goals equal xG<extra></extra>",
+    ))
+    scatter.update_layout(title="Observed team goals against expected goals", hovermode="closest")
+    scatter.update_xaxes(title="Expected goals (xG)", rangemode="tozero")
+    scatter.update_yaxes(title="Goals scored", rangemode="tozero")
+
+    margins = pd.concat([
+        pd.DataFrame({"season": xgm.season, "venue": "Home", "finish": xgm.score1 - xgm.xg1}),
+        pd.DataFrame({"season": xgm.season, "venue": "Away", "finish": xgm.score2 - xgm.xg2}),
+    ], ignore_index=True)
+    distribution = go.Figure()
+    for venue, color in (("Home", PINK), ("Away", TEAL)):
+        part = margins.loc[margins.venue.eq(venue)]
+        distribution.add_trace(go.Box(
+            x=part.season, y=part.finish, name=venue, boxpoints="outliers",
+            marker_color=color, line_color=color, quartilemethod="inclusive",
+            hovertemplate=f"Season %{{x}} · {venue}<br>Goals minus xG: %{{y:.2f}}<extra></extra>",
+        ))
+    distribution.update_layout(title="Finishing margin by season and venue", boxmode="group", hovermode="closest")
+    distribution.update_xaxes(title="Season", dtick=1)
+    distribution.update_yaxes(title="Goals − xG per team-match", zeroline=True)
+    return trend, scatter, distribution
+
+
+def messi_charts(apps: pd.DataFrame) -> tuple[go.Figure, go.Figure, go.Figure]:
+    miami = apps.loc[apps.club.eq("Inter Miami CF")].copy()
+    miami["period"] = miami.date.ge(MESSI_CUTOFF).map({False: "Before 21 Jul 2023", True: "On/after 21 Jul 2023"})
+    period = miami.groupby(["period", "venue"], as_index=False).agg(
+        matches=("gf", "size"), gf=("gf", "mean"), ga=("ga", "mean"), gd=("goal_diff", "mean")
+    )
+    period_order = ["Before 21 Jul 2023", "On/after 21 Jul 2023"]
+    colors = {"Before 21 Jul 2023": SLATE, "On/after 21 Jul 2023": PINK}
+
+    venue = go.Figure()
+    categories = []
+    for label in period_order:
+        for venue_name in ("Home", "Away"):
+            categories.append(f"{'Before' if label.startswith('Before') else 'On/after'} · {venue_name}")
+    for metric, title, period_colors in (
+        ("gf", "Goals for", ["#CBD5E1", "#CBD5E1", PINK, PINK]),
+        ("ga", "Goals against", ["#7DD3FC", "#7DD3FC", TEAL, TEAL]),
+    ):
+        values = []
+        custom = []
+        for label in period_order:
+            for venue_name in ("Home", "Away"):
+                item = period.loc[(period.period == label) & (period.venue == venue_name)].iloc[0]
+                values.append(item[metric])
+                custom.append([item.matches, item.gd, label, venue_name])
+        venue.add_trace(go.Bar(
+            x=categories, y=values, name=title, marker_color=period_colors,
+            customdata=custom,
+            hovertemplate="%{customdata[3]} · %{customdata[2]}<br>" + title +
+                          ": %{y:.2f} / match<br>Goal diff: %{customdata[1]:+.2f}" +
+                          "<br>Team appearances: %{customdata[0]}<extra></extra>",
+        ))
+    venue.update_layout(title="Inter Miami scoring by venue and period", barmode="group", hovermode="closest")
+    venue.update_xaxes(title="Match venue")
+    venue.update_yaxes(title="Goals per team appearance", rangemode="tozero")
+
+    dist = go.Figure()
+    for label in period_order:
+        part = miami.loc[miami.period.eq(label)]
+        dist.add_trace(go.Box(
+            x=[label] * len(part), y=part.goal_diff, name=label, boxpoints="outliers",
+            marker_color=colors[label], line_color=colors[label],
+            customdata=part[["date", "venue", "gf", "ga"]].to_numpy(),
+            hovertemplate="%{customdata[0]|%b %d, %Y} · %{customdata[1]}<br>Goal differential: %{y:+.0f}<br>Goals: %{customdata[2]:.0f}–%{customdata[3]:.0f}<extra></extra>",
+        ))
+    dist.update_layout(title="Distribution of Inter Miami match goal differentials", hovermode="closest")
+    dist.update_xaxes(title="Period relative to 21 July 2023")
+    dist.update_yaxes(title="Goals for − goals against", zeroline=True)
+
+    season = miami.groupby(["season", "venue"], as_index=False).agg(
+        matches=("gf", "size"), gf=("gf", "mean"), ga=("ga", "mean"), gd=("goal_diff", "mean")
+    )
+    trajectory = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=.14,
+                               subplot_titles=("Home appearances", "Away appearances"))
+    for venue_name, rownum in (("Home", 1), ("Away", 2)):
+        subset = season.loc[season.venue.eq(venue_name)].sort_values("season")
+        for column, label, color, dash in (
+            ("gf", "Goals for", PINK, "solid"), ("ga", "Goals against", TEAL, "dash")
+        ):
+            trajectory.add_trace(go.Scatter(
+                x=subset.season, y=subset[column], mode="lines+markers",
+                name=f"{venue_name} · {label}", line=dict(color=color, width=2.5, dash=dash),
+                customdata=subset[["matches", "gd"]].to_numpy(),
+                hovertemplate=f"Season %{{x}} · {venue_name}<br>{label}: %{{y:.2f}} / match<br>Goal differential: %{{customdata[1]:+.2f}}<br>Appearances: %{{customdata[0]}}<extra></extra>",
+            ), row=rownum, col=1)
+    trajectory.add_vline(x=2023, line_dash="dot", line_color=SLATE,
+                         annotation_text="21 Jul cutoff falls within 2023", row="all", col=1)
+    trajectory.update_xaxes(title_text="Season", dtick=1, row=2, col=1)
+    trajectory.update_yaxes(title_text="Goals / appearance", rangemode="tozero")
+    trajectory.update_layout(title="Inter Miami season trajectory", hovermode="x unified")
+    return venue, dist, trajectory
+
+
+def club_charts(matches: pd.DataFrame, apps: pd.DataFrame) -> tuple[go.Figure, go.Figure, go.Figure]:
+    club = apps.groupby("club", as_index=False).agg(
+        matches=("gf", "size"), gf=("gf", "mean"), ga=("ga", "mean"), goal_diff=("goal_diff", "mean")
+    )
+    top = club.sort_values(["gf", "matches"], ascending=[False, False]).head(12).sort_values("gf")
+    bar = go.Figure(go.Bar(
+        x=top.gf, y=top.club, orientation="h", marker_color=[PINK if c == "Inter Miami CF" else TEAL for c in top.club],
+        customdata=top[["matches", "ga", "goal_diff"]].to_numpy(),
+        hovertemplate="%{y}<br>Goals scored / appearance: %{x:.2f}<br>Goals conceded / appearance: %{customdata[1]:.2f}<br>Goal differential: %{customdata[2]:+.2f}<br>Team appearances: %{customdata[0]}<extra></extra>",
+    ))
+    bar.update_layout(title="Highest-scoring clubs across the full dataset", showlegend=False)
+    bar.update_xaxes(title="Goals scored per team appearance", rangemode="tozero")
+    bar.update_yaxes(title="")
+
+    scatter = go.Figure()
+    scatter.add_trace(go.Scatter(
+        x=club.gf, y=club.ga, mode="markers+text", text=club.club, textposition="top center",
+        textfont=dict(size=9, color=SLATE), marker=dict(
+            size=club.matches, sizemode="area", sizeref=2.0 * club.matches.max() / (34 ** 2),
+            sizemin=7, color=[PINK if c == "Inter Miami CF" else TEAL for c in club.club],
+            opacity=.72, line=dict(color="white", width=1),
+        ),
+        customdata=club[["matches", "goal_diff"]].to_numpy(),
+        hovertemplate="%{text}<br>Goals for / appearance: %{x:.2f}<br>Goals against / appearance: %{y:.2f}<br>Goal differential: %{customdata[1]:+.2f}<br>Team appearances: %{customdata[0]}<extra></extra>",
+    ))
+    league_attack = apps.gf.mean()
+    league_defense = apps.ga.mean()
+    scatter.add_vline(x=league_attack, line_dash="dot", line_color=SLATE,
+                      annotation_text=f"League scoring {league_attack:.2f}")
+    scatter.add_hline(y=league_defense, line_dash="dot", line_color=SLATE,
+                      annotation_text=f"League conceded {league_defense:.2f}")
+    scatter.update_layout(title="Attacking output vs. defensive record")
+    scatter.update_xaxes(title="Goals scored per appearance", rangemode="tozero")
+    scatter.update_yaxes(title="Goals conceded per appearance", rangemode="tozero")
+
+    rows = []
+    for year, group in matches.groupby("season", sort=True):
+        n = len(group)
+        rows.append({
+            "season": year,
+            "Home win": group.score1.gt(group.score2).mean() * 100,
+            "Draw": group.score1.eq(group.score2).mean() * 100,
+            "Away win": group.score1.lt(group.score2).mean() * 100,
+            "Home goals edge": group.score1.mean() - group.score2.mean(),
+            "matches": n,
+        })
+    outcome = pd.DataFrame(rows)
+    advantage = go.Figure()
+    for label, color in (("Home win", PINK), ("Draw", MUTED), ("Away win", TEAL)):
+        advantage.add_trace(go.Scatter(
+            x=outcome.season, y=outcome[label], name=label, mode="lines+markers",
+            line=dict(color=color, width=2.5), marker=dict(size=7),
+            customdata=outcome[["matches", "Home goals edge"]].to_numpy(),
+            hovertemplate=f"Season %{{x}}<br>{label}: %{{y:.1f}}%<br>Home goals edge: %{{customdata[1]:+.2f}} / match<br>Matches: %{{customdata[0]}}<extra></extra>",
+        ))
+    advantage.update_layout(title="Home-field outcomes and scoring edge", hovermode="x unified")
+    advantage.update_xaxes(title="Season", dtick=1)
+    advantage.update_yaxes(title="Share of matches", ticksuffix="%", range=[0, 70])
+    return bar, scatter, advantage
+
+
+def explorer_figures(matches: pd.DataFrame, apps: pd.DataFrame) -> tuple[go.Figure, go.Figure, go.Figure, list[str]]:
+    margin = go.Figure(go.Histogram(
+        x=matches.goal_margin, nbinsx=17, marker_color=TEAL, opacity=.86,
+        customdata=matches[["team1", "team2", "score1", "score2", "date"]].to_numpy(),
+        hovertemplate="Home goal margin: %{x}<br>Matches in bin: %{y}<extra></extra>",
+    ))
+    margin.update_layout(title="Distribution of home-team goal margins", bargap=.06)
+    margin.update_xaxes(title="Home goals − away goals", zeroline=True)
+    margin.update_yaxes(title="Number of matches")
+
+    byseason = matches.groupby("season", as_index=False).agg(
+        matches=("total_goals", "size"), avg_goals=("total_goals", "mean"),
+        five_plus=("total_goals", lambda values: values.ge(5).mean() * 100),
+    )
+    high = go.Figure()
+    high.add_trace(go.Bar(
+        x=byseason.season, y=byseason.five_plus, name="Matches with 5+ goals",
+        marker_color=PINK, customdata=byseason[["matches", "avg_goals"]].to_numpy(),
+        hovertemplate="Season %{x}<br>Matches with 5+ goals: %{y:.1f}%<br>Average total goals: %{customdata[1]:.2f}<br>Matches: %{customdata[0]}<extra></extra>",
+    ))
+    high.add_trace(go.Scatter(
+        x=byseason.season, y=byseason.avg_goals, name="Average total goals",
+        mode="lines+markers", yaxis="y2", line=dict(color=TEAL, width=3),
+        customdata=byseason[["matches", "five_plus"]].to_numpy(),
+        hovertemplate="Season %{x}<br>Average total goals: %{y:.2f}<br>5+ goal matches: %{customdata[1]:.1f}%<br>Matches: %{customdata[0]}<extra></extra>",
+    ))
+    high.update_layout(
+        title="High-scoring match share and mean goals",
+        yaxis=dict(title="Matches with 5+ goals", ticksuffix="%"),
+        yaxis2=dict(title="Average total goals", overlaying="y", side="right"),
+        hovermode="x unified",
+    )
+    high.update_xaxes(title="Season", dtick=1)
+
+    clubs = sorted(apps.club.unique())
+    figure = go.Figure()
+    for club_name in clubs:
+        for venue in ("Home", "Away"):
+            subset = apps.loc[(apps.club == club_name) & (apps.venue == venue)]
+            grouped = subset.groupby("season", as_index=False).agg(
+                appearances=("gf", "size"), goals=("gf", "mean"), goal_diff=("goal_diff", "mean")
+            )
+            figure.add_trace(go.Scatter(
+                x=grouped.season, y=grouped.goals, mode="lines+markers",
+                name=f"{club_name} · {venue}", meta={"club": club_name, "venue": venue},
+                visible=club_name == ("Inter Miami CF" if "Inter Miami CF" in clubs else clubs[0]),
+                line=dict(color=PINK if club_name == "Inter Miami CF" else TEAL,
+                          dash="solid" if venue == "Home" else "dash", width=2.5),
+                customdata=grouped[["appearances", "goal_diff"]].to_numpy(),
+                hovertemplate=f"Season %{{x}} · {club_name} · {venue}<br>Goals scored / appearance: %{{y:.2f}}<br>Goal differential: %{{customdata[1]:+.2f}}<br>Appearances: %{{customdata[0]}}<extra></extra>",
+            ))
+    figure.update_layout(title="Choose a club to compare its season output", showlegend=False, hovermode="x unified")
+    figure.update_xaxes(title="Season", dtick=1)
+    figure.update_yaxes(title="Goals scored per appearance", rangemode="tozero")
+    return margin, high, figure, clubs
+
+
+def table_rows(matches: pd.DataFrame) -> str:
+    records = []
+    for row in matches.sort_values("date", ascending=False).itertuples():
+        records.append({
+            "date": row.date.strftime("%Y-%m-%d"),
+            "season": int(row.season),
+            "home": str(row.team1),
+            "away": str(row.team2),
+            "score": f"{row.score1:g}–{row.score2:g}",
+            "goals": int(row.total_goals),
+            "margin": f"{row.goal_margin:+g}",
+            "xg": f"{row.xg1:.2f}–{row.xg2:.2f}" if row.xg_complete else "—",
+            "source": str(row.source),
+        })
+    return json.dumps(records, ensure_ascii=False).replace("</", "<\\/")
 
 
 def explorer_script() -> str:
     return """
 <script>
 (() => {
-  const chart = document.getElementById("club-chart");
+  const chart = document.getElementById("club-season-chart");
   const clubSelect = document.getElementById("club-select");
-  const buttons = [...document.querySelectorAll("[data-venue-filter]")];
-  let venueFilter = "Both";
+  const seasonSelect = document.getElementById("match-season");
+  const matchTeamSelect = document.getElementById("match-team");
+  const rows = JSON.parse(document.getElementById("match-data").textContent);
+  const tbody = document.getElementById("match-rows");
+  const count = document.getElementById("match-count");
 
-  function applyFilters() {
-    const selectedClub = clubSelect.value;
-    const visibility = chart.data.map((trace) =>
-      trace.meta.club === selectedClub &&
-      (venueFilter === "Both" || trace.meta.venue === venueFilter)
-    );
-    Plotly.restyle(chart, { visible: visibility });
+  function applyClub() {
+    const club = clubSelect.value;
+    const visible = chart.data.map(trace => trace.meta.club === club);
+    Plotly.restyle(chart, {visible});
   }
-
-  clubSelect.addEventListener("change", applyFilters);
-  buttons.forEach((button) => {
-    button.addEventListener("click", () => {
-      venueFilter = button.dataset.venueFilter;
-      buttons.forEach((item) =>
-        item.setAttribute("aria-pressed", String(item === button))
-      );
-      applyFilters();
-    });
-  });
-  applyFilters();
+  function renderMatches() {
+    const season = seasonSelect.value;
+    const team = matchTeamSelect.value;
+    const filtered = rows.filter(row =>
+      (season === "all" || String(row.season) === season) &&
+      (team === "all" || row.home === team || row.away === team)
+    ).slice(0, 100);
+    count.textContent = `Showing ${filtered.length.toLocaleString()} of ${rows.filter(row =>
+      (season === "all" || String(row.season) === season) &&
+      (team === "all" || row.home === team || row.away === team)
+    ).length.toLocaleString()} matching observed fixtures (maximum 100 displayed).`;
+    tbody.replaceChildren(...filtered.map(row => {
+      const tr = document.createElement("tr");
+      [row.date, row.season, row.home, row.away, row.score, row.goals, row.margin, row.xg, row.source]
+        .forEach(value => { const td = document.createElement("td"); td.textContent = value; tr.appendChild(td); });
+      return tr;
+    }));
+  }
+  clubSelect.addEventListener("change", applyClub);
+  seasonSelect.addEventListener("change", renderMatches);
+  matchTeamSelect.addEventListener("change", renderMatches);
+  applyClub();
+  renderMatches();
 })();
 </script>
 """
 
 
-def inter_miami_figure(matches: pd.DataFrame) -> go.Figure:
-    recent = matches.loc[matches["season"].between(2020, 2025)].copy()
-    recent["group"] = "Rest of MLS"
-    recent.loc[
-        recent["team1"].eq("Inter Miami CF") | recent["team2"].eq("Inter Miami CF"),
-        "group",
-    ] = "Inter Miami fixtures"
-    summary = (
-        recent.groupby(["season", "group"], as_index=False)
-        .agg(matches=("total_goals", "size"), goals=("total_goals", "mean"))
+def about_body(matches: pd.DataFrame, apps: pd.DataFrame) -> str:
+    pre = apps.loc[(apps.club == "Inter Miami CF") & (apps.date < MESSI_CUTOFF), "gf"]
+    post = apps.loc[(apps.club == "Inter Miami CF") & (apps.date >= MESSI_CUTOFF), "gf"]
+    about_kpis = kpi_cards(matches, apps, section=False)
+    source_paragraph = (
+        f"The observational dataset <code>mls_matches.csv</code> contains {len(matches):,} MLS matches "
+        f"across {matches.season.nunique()} seasons ({matches.season.min()}–{matches.season.max()}), "
+        f"with {int(matches.total_goals.sum()):,} goals and {int(matches.xg_complete.sum()):,} matches "
+        "with complete paired expected-goals records. Scores extend through 2025; xG is present only "
+        "where both source values were recorded, and no missing values are estimated. "
+        '<a href="https://github.com/boloboloaf-hub/mls-messi-growth/blob/main/mls_matches.csv">View the source data file</a>.'
     )
-    xg_summary = (
-        recent.loc[recent["xg_complete"]]
-        .groupby(["season", "group"], as_index=False)
-        .agg(xg_matches=("total_xg", "size"), xg=("total_xg", "mean"))
-    )
-    figure = make_subplots(
-        rows=2,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.15,
-        subplot_titles=("Total goals per match", "Combined expected goals per match"),
-    )
-    colors = {"Inter Miami fixtures": "#e85c4a", "Rest of MLS": "#174e3c"}
-    for label in ("Inter Miami fixtures", "Rest of MLS"):
-        goals = summary.loc[summary["group"].eq(label)].sort_values("season")
-        figure.add_trace(
-            go.Scatter(
-                x=goals["season"],
-                y=goals["goals"],
-                customdata=goals[["matches"]].to_numpy(),
-                mode="lines+markers",
-                name=label,
-                legendgroup=label,
-                line=dict(color=colors[label], width=3),
-                marker=dict(size=8),
-                hovertemplate=(
-                    "Season %{x}<br>Goals per match: %{y:.2f}"
-                    "<br>Fixtures: %{customdata[0]}<extra></extra>"
-                ),
-            ),
-            row=1,
-            col=1,
-        )
-        xg = xg_summary.loc[xg_summary["group"].eq(label)].sort_values("season")
-        figure.add_trace(
-            go.Scatter(
-                x=xg["season"],
-                y=xg["xg"],
-                customdata=xg[["xg_matches"]].to_numpy(),
-                mode="lines+markers",
-                name=label,
-                legendgroup=label,
-                showlegend=False,
-                line=dict(color=colors[label], width=3, dash="dash"),
-                marker=dict(size=8, symbol="diamond"),
-                hovertemplate=(
-                    "Season %{x}<br>Expected goals per match: %{y:.2f}"
-                    "<br>Fixtures with xG: %{customdata[0]}<extra></extra>"
-                ),
-            ),
-            row=2,
-            col=1,
-        )
-    figure.add_vline(
-        x=2023,
-        line_color="#77867e",
-        line_dash="dot",
-        line_width=2,
-        annotation_text="Messi joins · 2023",
-        annotation_position="top",
-    )
-    figure.update_xaxes(title_text="Season", dtick=1, range=[2019.5, 2025.5], row=2, col=1)
-    figure.update_yaxes(title_text="Goals", rangemode="tozero", row=1, col=1)
-    figure.update_yaxes(title_text="Combined xG", rangemode="tozero", row=2, col=1)
-    figure.update_layout(
-        title=dict(text="The change appears after the arrival—not all at once", x=0.02, xanchor="left"),
-        hovermode="x unified",
-    )
-    return figure
-
-
-def tactical_figure(matches: pd.DataFrame) -> go.Figure:
-    years = []
-    for season, group in matches.groupby("season", sort=True):
-        xg_matches = group.loc[group["xg_complete"]]
-        years.append(
-            {
-                "season": int(season),
-                "home_goals": group["score1"].mean(),
-                "away_goals": group["score2"].mean(),
-                "home_xg": xg_matches["xg1"].mean(),
-                "away_xg": xg_matches["xg2"].mean(),
-                "home_win": group["score1"].gt(group["score2"]).mean() * 100,
-                "draw": group["score1"].eq(group["score2"]).mean() * 100,
-                "away_win": group["score1"].lt(group["score2"]).mean() * 100,
-                "home_conversion": (
-                    xg_matches["score1"].sum() / xg_matches["xg1"].sum()
-                    if len(xg_matches)
-                    else None
-                ),
-                "away_conversion": (
-                    xg_matches["score2"].sum() / xg_matches["xg2"].sum()
-                    if len(xg_matches)
-                    else None
-                ),
-            }
-        )
-    summary = pd.DataFrame(years)
-    figure = make_subplots(
-        rows=3,
-        cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.11,
-        subplot_titles=(
-            "Goals and expected goals per team, per match",
-            "Match result share",
-            "Goals scored per expected goal",
-        ),
-    )
-    series = [
-        ("home_goals", "Home goals", "#174e3c", "solid", 1),
-        ("away_goals", "Away goals", "#e85c4a", "solid", 1),
-        ("home_xg", "Home xG · through 2022", "#174e3c", "dash", 1),
-        ("away_xg", "Away xG · through 2022", "#e85c4a", "dash", 1),
-        ("home_win", "Home win", "#174e3c", "solid", 2),
-        ("draw", "Draw", "#74827b", "dot", 2),
-        ("away_win", "Away win", "#e85c4a", "solid", 2),
-        ("home_conversion", "Home goals / xG · through 2022", "#174e3c", "solid", 3),
-        ("away_conversion", "Away goals / xG · through 2022", "#e85c4a", "solid", 3),
-    ]
-    for column, label, color, dash, row in series:
-        data = summary.loc[summary[column].notna()]
-        figure.add_trace(
-            go.Scatter(
-                x=data["season"],
-                y=data[column],
-                mode="lines+markers",
-                name=label,
-                legendgroup=label,
-                line=dict(color=color, dash=dash, width=2.5),
-                marker=dict(size=7),
-                hovertemplate=f"Season %{{x}}<br>{label}: %{{y:.2f}}<extra></extra>",
-            ),
-            row=row,
-            col=1,
-        )
-    figure.update_xaxes(title_text="Season", dtick=1, row=3, col=1)
-    figure.update_yaxes(title_text="Goals / xG", rangemode="tozero", row=1, col=1)
-    figure.update_yaxes(title_text="Share (%)", range=[0, 65], row=2, col=1)
-    figure.update_yaxes(title_text="Goals per xG", range=[0.6, 1.5], row=3, col=1)
-    figure.update_layout(
-        title=dict(text="The home side scores more—and wins more often", x=0.02, xanchor="left"),
-        hovermode="x unified",
-    )
-    return figure
+    return f"""
+<div class="wrap">
+  <section aria-label="Author and project links">
+    <div class="hero"><div class="eyebrow">Project &amp; author</div><h1>About this work</h1>
+      <p class="dek">A match-level study of MLS scoring, club performance and the timing of Lionel Messi’s arrival.</p></div>
+    {about_kpis}
+    <div class="profile-card">
+      <div class="eyebrow">Author</div><h2>Angel Emilio Frias Arias</h2>
+      <p>Data Science &amp; Analytics student at New College of Florida and a varsity collegiate soccer forward.</p>
+      <div class="profile-links">
+        <div><strong>Contact</strong><br><a href="mailto:a.friasarias28@ncf.edu">a.friasarias28@ncf.edu</a></div>
+        <div><strong>GitHub account</strong><br><a href="https://github.com/boloboloaf-hub">github.com/boloboloaf-hub</a></div>
+        <div><strong>Project repository</strong><br><a href="https://github.com/boloboloaf-hub/mls-messi-growth">github.com/boloboloaf-hub/mls-messi-growth</a></div>
+        <div><strong>Institution</strong><br><a href="https://www.ncf.edu">New College of Florida</a></div>
+      </div>
+    </div>
+  </section>
+  <section class="section" aria-label="Data source">
+    <div class="eyebrow">Data source</div><h2>Observed match records</h2>
+    <div class="data-note">{source_paragraph}</div>
+  </section>
+</div>"""
 
 
 def build_site(matches: pd.DataFrame) -> None:
     DOCS.mkdir(exist_ok=True)
-    match_count = len(matches)
-    season_count = matches["season"].nunique()
-    goal_count = int(matches["total_goals"].sum())
-    xg_matches = int(matches["xg_complete"].sum())
-    mean_xg = matches.loc[matches["xg_complete"], "total_xg"].mean()
-    clubs = sorted(set(matches["team1"]) | set(matches["team2"]))
+    apps = appearances(matches)
+    kpis = kpi_cards(matches, apps)
+    common_note = (
+        "All figures are computed from the checked-in match-level CSV. Paired xG is available "
+        "only where both values are present; missing xG is never imputed. Descriptive patterns "
+        "are not causal estimates."
+    )
 
-    home_plot = plot_html(home_figure(matches), "league-trajectory-chart", height=650)
-    home_body = f"""
+    home = f"""
 <div class="wrap">
-  <section class="hero">
-    <div class="eyebrow">A match-by-match look at the modern MLS</div>
-    <h1>The growth of U.S. soccer—and the Messi effect</h1>
-    <p class="dek">Major League Soccer's recent evolution is written into its match scores. This project follows the league from its 2017 season through 2025, then looks closer at the arrival of Lionel Messi and what changed around Inter Miami.</p>
-  </section>
-  <section class="kpis" aria-label="Dataset summary">
-    <article class="kpi"><div class="kpi-label">Total real matches analyzed</div><div class="kpi-value">{match_count:,}</div><div class="kpi-note">Completed MLS fixtures, 2017–2025</div></article>
-    <article class="kpi"><div class="kpi-label">Seasons covered</div><div class="kpi-value">{season_count}</div><div class="kpi-note">{matches["season"].min()} through {matches["season"].max()}</div></article>
-    <article class="kpi"><div class="kpi-label">Total goals scored</div><div class="kpi-value">{goal_count:,}</div><div class="kpi-note">Home and away goals combined</div></article>
-    <article class="kpi"><div class="kpi-label">Average expected goals per match</div><div class="kpi-value">{mean_xg:.2f}</div><div class="kpi-note">Combined xG per match · {xg_matches:,} complete xG records</div></article>
-  </section>
-  <section class="section">
-    <div class="section-heading">
-      <div><div class="eyebrow">League trajectory</div><h2>One point for every game</h2></div>
-      <p>Scores extend through 2025. Expected-goal observations are available in the FiveThirtyEight archive through 2022; both measures are shown at match level where recorded, with season averages to make the long view legible.</p>
-    </div>
-    <div class="chart-card">{home_plot}
-      <div class="chart-caption"><span><strong>How to read it:</strong> faint marks are individual matches; solid and dashed lines are season averages.</span><span>Hover for exact match scores or xG.</span></div>
-    </div>
-  </section>
-  <div class="data-note"><strong>Data in brief.</strong> The local file combines 2,505 MLS rows from an archived FiveThirtyEight SPI match file with 1,583 completed non-All-Star MLS scoreboard events from ESPN for 2023–2025. xG is not supplied in the later ESPN rows, so no post-2022 xG values are imputed. The analysis is descriptive, not causal.</div>
-</div>
-"""
-    (DOCS / "index.html").write_text(
-        page("The growth of U.S. soccer and the Messi effect", "index.html", home_body),
-        encoding="utf-8",
-    )
+  {page_hero("Executive overview · 2017–2025", "MLS is changing. The match record shows where.", "A data-first overview of league scoring and outcomes across nine seasons, with Lionel Messi’s July 2023 arrival treated as a clear time marker—not a causal explanation.")}
+  {kpis}
+  {chart_section("League trajectory", "Goals scored by home and away teams", "Season averages make the scoring trend readable while preserving the home/away split. The 2023 season includes matches both before and after the July 21 cutoff.", plot_html(home_season_chart(matches), "home-scoring-chart"), "The season marker is context, not a split-season estimate: 2023 combines pre- and post-cutoff matches.")}
+  {chart_section("Competitive balance", "How matches ended, season by season", "A stacked view of observed home wins, draws and away wins; each segment is calculated from that season’s recorded final scores.", plot_html(home_results_chart(matches), "home-results-chart"), "Hover a season to see the actual match count behind its result shares.")}
+  <div class="data-note">{common_note} The file covers {len(matches):,} matches and {int(matches.total_goals.sum()):,} goals; {int(matches.xg_complete.sum()):,} matches contain complete paired xG.</div>
+</div>"""
+    (DOCS / "index.html").write_text(page("MLS evolution and Messi impact", "index.html", home), encoding="utf-8")
 
-    performance = team_performance(matches)
-    explorer_plot = plot_html(
-        explorer_figure(performance, clubs), "club-chart", height=550
-    )
+    goal_trend, xg_scatter, finishing = scoring_xg_charts(matches)
+    scoring = f"""
+<div class="wrap">
+  {page_hero("Scoring & expected goals", "What was scored—and what was expected?", "Compare realized goals with observed xG, then inspect how the goals-minus-xG finishing margin varies by season and venue.")}
+  {kpis}
+  {chart_section("League scoring", "Goals and xG on the same match sample", "Both seasonal series use only matches with complete paired xG, so the actual-goal and expected-goal averages are comparable.", plot_html(goal_trend, "scoring-trend-chart"), "The xG series ends with the seasons for which paired estimates are actually recorded; there is no extrapolated post-2022 xG.")}
+  {chart_section("Match-level efficiency", "Actual goals against expected goals", "Each point is one team’s score and xG in one match. Points above the reference line finished above the recorded expectation; points below finished under it.", plot_html(xg_scatter, "goals-xg-scatter", 540), "A match-level finishing margin is noisy: it is a descriptive difference, not a stable measure of individual finishing skill.")}
+  {chart_section("Finishing distribution", "Goals minus xG, by season and venue", "Boxes summarize the distribution of team-match finishing margins across complete-xG observations; hover outliers for the exact value.", plot_html(finishing, "finishing-box-chart", 520), "The center and spread show how outcomes vary around xG; values are not available in the later score-only data.")}
+  <div class="data-note">{common_note}</div>
+</div>"""
+    (DOCS / "scoring-xg.html").write_text(page("Scoring and expected goals", "scoring-xg.html", scoring), encoding="utf-8")
+
+    venue_fig, goal_diff_fig, miami_trend = messi_charts(apps)
+    before = apps.loc[(apps.club == "Inter Miami CF") & (apps.date < MESSI_CUTOFF)]
+    after = apps.loc[(apps.club == "Inter Miami CF") & (apps.date >= MESSI_CUTOFF)]
+    gf_delta = after.gf.mean() - before.gf.mean()
+    gd_delta = after.goal_diff.mean() - before.goal_diff.mean()
+    messi = f"""
+<div class="wrap">
+  {page_hero("Messi Impact · before / after 21 July 2023", "Inter Miami’s match profile shifted after July 2023.", "Compare Inter Miami team appearances before and on/after the July 21, 2023 cutoff. This descriptive comparison includes the club’s whole match record in each period—not an estimate of Messi’s individual contribution.")}
+  {kpis}
+  {chart_section("Home and away", "Scoring and conceding rates by period", "Goals for and against per Inter Miami team appearance, split by venue and the exact July 21 cutoff.", plot_html(venue_fig, "miami-venue-chart", 510), f"Observed team goals per appearance changed by {gf_delta:+.2f} and average goal differential by {gd_delta:+.2f} between the pre-cutoff and later periods; the comparison does not control for roster, opponent or season.")}
+  {chart_section("Match outcomes", "The distribution of goal differential", "Each box displays the Inter Miami match-level goal differential distribution for one period; the width reflects observed match variation.", plot_html(goal_diff_fig, "miami-goal-diff-chart", 500), f"Pre-cutoff matches: {len(before)} team appearances; on/after-cutoff: {len(after)}. Both sample sizes appear in the hoverable team-level records.")}
+  {chart_section("Season trajectory", "How Miami’s home and away form evolved", "Season averages are separated by venue and show goals for and against. The vertical marker identifies the season containing the cutoff; 2023 itself spans both periods.", plot_html(miami_trend, "miami-season-chart", 610), "Season averages can conceal within-season changes. The July 2023 cutoff is applied to match dates in the before/after comparison above.")}
+  <div class="data-note">{common_note} The data record scores rather than player appearances, so this page describes an Inter Miami change around Messi’s arrival and cannot assign that change to one player.</div>
+</div>"""
+    (DOCS / "messi-impact.html").write_text(page("Inter Miami and the Messi-era comparison", "messi-impact.html", messi), encoding="utf-8")
+
+    club_bar, club_scatter, home_field = club_charts(matches, apps)
+    club_dynamics = f"""
+<div class="wrap">
+  {page_hero("Club & league dynamics", "Compare attacking output, defense and home advantage.", "Club rates aggregate real home and away appearances across the available seasons. Hover marks for sample sizes; totals are not adjusted for schedule or season length.")}
+  {kpis}
+  {chart_section("Attacking leaderboard", "Clubs with the highest goals per appearance", "Clubs are ranked on the mean goals they scored per recorded team appearance across 2017–2025; the hover includes appearances and goals conceded.", plot_html(club_bar, "club-scoring-chart", 570), "A rate describes scoring output, not overall team quality; opponents, match counts and the mix of seasons differ by club.")}
+  {chart_section("Attack vs. defense", "The club efficiency quadrant", "Each bubble is a club, sized by recorded appearances. The vertical and horizontal references are the dataset’s appearance-weighted league means.", plot_html(club_scatter, "club-efficiency-chart", 620), "Lower on the vertical axis means fewer goals conceded; farther right means more goals scored. Hover labels carry exact club-level values.")}
+  {chart_section("Home-field advantage", "Result shares and home scoring edge", "Season-level shares compare home wins, draws and away wins. Hover also reports the home-minus-away goals-per-match edge and season sample size.", plot_html(home_field, "home-field-chart", 500), "Home advantage is summarized from match outcomes and scores; this CSV does not measure travel, attendance or other explanatory factors.")}
+  <div class="data-note">{common_note}</div>
+</div>"""
+    (DOCS / "clubs-dynamics.html").write_text(page("Club and league dynamics", "clubs-dynamics.html", club_dynamics), encoding="utf-8")
+
+    margin_fig, high_fig, team_fig, clubs = explorer_figures(matches, apps)
     club_options = "".join(
-        f'<option value="{html.escape(club, quote=True)}"'
-        f'{" selected" if club == "Inter Miami CF" else ""}>'
-        f"{html.escape(club)}</option>"
-        for club in clubs
+        f'<option value="{html.escape(name, quote=True)}"{" selected" if name == "Inter Miami CF" else ""}>{html.escape(name)}</option>'
+        for name in clubs
     )
-    explorer_body = f"""
+    seasons = sorted(matches.season.unique())
+    season_options = '<option value="all">All seasons</option>' + "".join(
+        f'<option value="{year}">{year}</option>' for year in seasons
+    )
+    match_options = '<option value="all">All clubs</option>' + "".join(
+        f'<option value="{html.escape(name, quote=True)}">{html.escape(name)}</option>'
+        for name in clubs
+    )
+    explorer = f"""
 <div class="wrap">
-  <section class="hero">
-    <div class="eyebrow">Club &amp; season explorer</div>
-    <h1>Put the match record in your hands</h1>
-    <p class="dek">Choose a club, switch between its home and away form, then narrow the seasons with the chart's range slider. Each point summarizes that club's completed matches in that season.</p>
+  {page_hero("Match Explorer · interactive", "Filter the record. Inspect the match.", "Explore goal margins and season-level scoring, then select a club, season or both to see observed fixture scores, xG coverage and source attribution.")}
+  {kpis}
+  {chart_section("Goal margins", "Home-team scoring margin distribution", "Positive values indicate a home win, zero a draw, and negative values an away win. The histogram bins are built from each match’s recorded score.", plot_html(margin_fig, "goal-margin-chart", 450), "The shape is a league-wide distribution; filters below let you inspect the underlying match records.")}
+  {chart_section("High-scoring matches", "Five or more goals, by season", "Bars show the observed share of matches with at least five combined goals. The line uses a second axis for the season mean total goals.", plot_html(high_fig, "high-scoring-chart", 490), "Both metrics use the same season match rows and update only from recorded final scores.")}
+  <section class="section"><div class="section-heading"><div><div class="eyebrow">Interactive club breakdown</div><h2>Season-by-season team output</h2></div><p>Choose any club to display its home and away goals per appearance. Dashed lines indicate away fixtures.</p></div>
+    <div class="panel"><div class="controls"><div><label class="control-label" for="club-select">Club chart</label><select id="club-select">{club_options}</select></div></div>
+    <div class="chart-card">{plot_html(team_fig, "club-season-chart", 500)}</div></div>
   </section>
-  <section class="section">
-    <div class="panel">
-      <div class="controls">
-        <div><label class="control-label" for="club-select">Select a club</label><select id="club-select">{club_options}</select></div>
-        <div><span class="control-label">Match venue</span><div class="button-group" role="group" aria-label="Filter by match venue">
-          <button class="filter-button" type="button" data-venue-filter="Both" aria-pressed="true">Home + Away</button>
-          <button class="filter-button" type="button" data-venue-filter="Home" aria-pressed="false">Home</button>
-          <button class="filter-button" type="button" data-venue-filter="Away" aria-pressed="false">Away</button>
-        </div></div>
-      </div>
-      <p>Hover any season for the exact match count, win rate, goals scored per game and available expected goals. The xG field is blank for post-2022 matches because the supplemental scoreboard does not publish it.</p>
-      <div class="chart-card">{explorer_plot}</div>
+  <section class="section"><div class="section-heading"><div><div class="eyebrow">Match-level records</div><h2>Filter the source matches</h2></div><p>Exact scores, total goals, home margin, paired xG when available, and the source attribution recorded in the CSV.</p></div>
+    <div class="panel"><div class="controls">
+      <div><label class="control-label" for="match-season">Season</label><select id="match-season">{season_options}</select></div>
+      <div><label class="control-label" for="match-team">Club in match</label><select id="match-team">{match_options}</select></div>
+    </div>
+    <p id="match-count" aria-live="polite"></p>
+    <div class="table-card"><div class="table-wrap"><table><thead><tr><th>Date</th><th>Season</th><th>Home club</th><th>Away club</th><th>Score</th><th class="num">Goals</th><th class="num">Home margin</th><th>xG (home–away)</th><th>Recorded source</th></tr></thead><tbody id="match-rows"></tbody></table></div></div>
     </div>
   </section>
-  <section class="section">
-    <div class="section-heading"><div><div class="eyebrow">League-wide reference</div><h2>Every club in the record</h2></div>
-      <p>Club totals combine home and away appearances across the available seasons. xG averages use only matches with a complete xG pair.</p>
-    </div>
-    <div class="table-card"><div class="table-wrap">{club_table(matches, clubs)}</div></div>
-  </section>
-  <div class="data-note"><strong>Reading the chart.</strong> Lines show goals scored per match; hover details also report win rate and mean xG. xG coverage is limited to complete FiveThirtyEight records, while goals and results extend through 2025.</div>
+  <script type="application/json" id="match-data">{table_rows(matches)}</script>
+  <div class="data-note">{common_note} The table displays up to 100 matching rows at a time; it does not sample or alter the underlying CSV.</div>
 </div>
-{explorer_script()}
-"""
-    (DOCS / "explorer.html").write_text(
-        page("Club & season explorer", "explorer.html", explorer_body),
-        encoding="utf-8",
-    )
+{explorer_script()}"""
+    (DOCS / "explorer.html").write_text(page("Interactive MLS match explorer", "explorer.html", explorer), encoding="utf-8")
 
-    inter_plot = plot_html(
-        inter_miami_figure(matches), "inter-miami-chart", static=True, height=670
-    )
-    inter_body = f"""
-<div class="wrap">
-  <section class="hero">
-    <div class="eyebrow">The Inter Miami turning point</div>
-    <h1>A superstar changed the spotlight. The scoreline took longer.</h1>
-    <p class="dek">Lionel Messi arrived in South Florida in July 2023. Season-level match records put that moment in context—and show why the most striking shift appears in the seasons that followed.</p>
-  </section>
-  <section class="section">
-    <div class="chart-card">{inter_plot}
-      <div class="chart-caption"><span><strong>Inter Miami fixtures</strong> includes every match involving the club; <strong>Rest of MLS</strong> excludes those fixtures.</span><span>The chart is fixed for reading; no zoom or filter controls.</span></div>
-    </div>
-    <div class="story-copy">
-      <p>Inter Miami's first three seasons were not a steady climb into high-scoring games. Its matches averaged 2.63 total goals in 2020, 2.62 in 2021 and 3.03 in 2022. In 2023—the season Messi joined in July—the full-season average was 2.79, almost level with the rest of MLS at 2.76. That is a useful reminder: a season-wide average blurs the before-and-after inside a campaign.</p>
-      <p>The contrast becomes pronounced in the next two seasons. Miami fixtures averaged 3.76 total goals in 2024 and 4.03 in 2025, compared with 3.07 and 2.94 across the rest of the league. Miami itself scored an average 2.27 and 2.52 goals per match in those seasons, respectively. A more forceful attack is consistent with the pattern; the scores alone cannot separate Messi's contribution from teammates, opponents, game state or other roster changes.</p>
-      <p>For U.S. soccer ahead of the 2026 FIFA World Cup, the record points to both the pull of a global star and the importance of what happens after the headline signing. Inter Miami became a more prolific, higher-event team over time, but this comparison measures goals—not attendance, broadcast reach or the independent effect of one player. It is evidence of a striking change, not a causal verdict.</p>
-    </div>
-    <div class="data-note"><strong>Coverage note.</strong> Goal totals include 2020–2025 completed league and postseason fixtures. Paired xG is available only through 2022 in these sources, so the xG series ends before Messi's arrival. Messi joined during the 2023 season; this chart does not isolate his appearances.</div>
-  </section>
-</div>
-"""
-    (DOCS / "inter-miami-story.html").write_text(
-        page("The Inter Miami turning point", "inter-miami-story.html", inter_body),
-        encoding="utf-8",
-    )
+    about = about_body(matches, apps)
+    (DOCS / "about.html").write_text(page("About and data source", "about.html", about), encoding="utf-8")
 
-    tactical_plot = plot_html(
-        tactical_figure(matches), "home-advantage-chart", static=True, height=810
-    )
-    tactical_body = f"""
-<div class="wrap">
-  <section class="hero">
-    <div class="eyebrow">Home advantage &amp; scoring trends</div>
-    <h1>Home still matters. The margin has moved.</h1>
-    <p class="dek">Across thousands of MLS fixtures, home teams score more and win more often. Season-by-season trends show that advantage is not fixed—and that away sides have become more competitive in the most recent records.</p>
-  </section>
-  <section class="section">
-    <div class="chart-card">{tactical_plot}
-      <div class="chart-caption"><span>Expected goals and conversion ratios stop at 2022, the last MLS season with paired xG in the archive.</span><span>Static chart · match outcomes and scoring rates are season aggregates.</span></div>
-    </div>
-    <div class="story-copy">
-      <p>Across all 4,088 matches from 2017–2025, the home team scored 1.74 goals per game and the away team 1.23. Home sides won 49.0% of fixtures; away sides won 26.2%, with the remainder drawn. That is a clear home edge in results as well as output, but it is an average across changing clubs, schedules and seasons—not a rule for any single match.</p>
-      <p>The available xG records help separate chance creation from finishing. In 2,504 matches with complete xG, home teams averaged 1.65 xG and 1.77 actual goals, while away teams averaged 1.21 xG and 1.20 goals. Goals per xG were 1.07 at home and 0.99 away. These ratios describe realized scoring against this dataset's expected-goal estimates; they are not a pure measure of skill or shot quality.</p>
-      <p>The gap has also narrowed in recent seasons: home teams won 51.1% of recorded games in 2017–2022, compared with 45.8% in 2023–2025, while away wins rose from 25.1% to 28.0%. The later period lacks xG, so the score data can show a shift in outcomes but not whether chance quality or finishing drove it. It is a useful signal of a changing league, not proof that travel or venue mattered less.</p>
-    </div>
-    <div class="data-note"><strong>Method.</strong> The first panel compares home/away goals per match with paired xG; the second shows each result type as a share of matches; the third divides goals scored by xG for seasons with coverage. For the later years, only final scores and outcomes are available.</div>
-  </section>
-</div>
-"""
-    (DOCS / "tactical-trends.html").write_text(
-        page("Home advantage & scoring trends", "tactical-trends.html", tactical_body),
-        encoding="utf-8",
-    )
+    for obsolete_page in ("inter-miami-story.html", "tactical-trends.html"):
+        obsolete_path = DOCS / obsolete_page
+        if obsolete_path.is_file():
+            obsolete_path.unlink()
 
     print(
-        f"Built {len(NAV_ITEMS)} pages from {match_count:,} matches "
-        f"({season_count} seasons, {goal_count:,} goals, {xg_matches:,} complete xG records)."
+        f"Built {len(NAV_ITEMS)} pages from {len(matches):,} observed matches "
+        f"({matches.season.nunique()} seasons, {int(matches.total_goals.sum()):,} goals, "
+        f"{int(matches.xg_complete.sum()):,} complete xG matches)."
     )
 
 

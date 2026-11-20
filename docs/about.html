@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An observational MLS match analysis of scoring, clubs, expected goals and Lionel Messi's arrival, 2017–2025.">
+  <title>About and data source | MLS Matchbook</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #0f172a;
+    --muted: #64748b;
+    --paper: #f3f6fa;
+    --card: #fff;
+    --line: #e2e8f0;
+    --navy: #0f172a;
+    --pink: #e91e63;
+    --pink-soft: #f7b5cd;
+    --teal: #0ea5e9;
+    --shadow: 0 12px 32px rgba(15, 23, 42, .07);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  .site-header { position: sticky; z-index: 20; top: 0; background: rgba(15, 23, 42, .97); color: #fff; box-shadow: 0 5px 24px rgba(0,0,0,.12); }
+  .nav-wrap { width: min(1320px, calc(100% - 44px)); min-height: 72px; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+  .brand { flex: 0 0 auto; color: #fff; font-size: 13px; font-weight: 850; letter-spacing: .1em; line-height: 1.25; text-decoration: none; text-transform: uppercase; }
+  .brand span { display: block; color: var(--pink-soft); font-size: 10px; letter-spacing: .08em; }
+  .nav-links { display: flex; align-items: center; gap: 4px; }
+  .nav-links a { border-radius: 999px; color: #dbe3ef; font-size: 12px; font-weight: 700; padding: 10px 12px; text-decoration: none; white-space: nowrap; }
+  .nav-links a:hover, .nav-links a[aria-current="page"] { background: rgba(233,30,99,.17); color: #ffc0d5; }
+  main { min-height: calc(100vh - 180px); }
+  .wrap { width: min(1160px, calc(100% - 44px)); margin: 0 auto; }
+  .hero { padding: 58px 0 22px; }
+  .eyebrow { color: var(--pink); font-size: 11px; font-weight: 850; letter-spacing: .15em; text-transform: uppercase; }
+  h1 { max-width: 970px; margin: 14px 0 15px; font-size: clamp(38px, 6vw, 68px); letter-spacing: -.055em; line-height: 1.02; }
+  h2 { margin: 0 0 10px; font-size: clamp(23px, 3vw, 32px); letter-spacing: -.04em; }
+  h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.02em; }
+  p { color: #334155; font-size: 15px; line-height: 1.72; }
+  .dek { max-width: 850px; margin: 0; color: #526176; font-size: 17px; line-height: 1.7; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 13px; margin: 16px 0 30px; }
+  .kpi, .panel, .chart-card, .table-card, .profile-card { border: 1px solid var(--line); border-radius: 16px; background: var(--card); box-shadow: var(--shadow); }
+  .kpi { min-height: 132px; padding: 18px 19px; transition: transform .18s ease, box-shadow .18s ease; }
+  .kpi:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(15,23,42,.11); }
+  .kpi-label { color: var(--muted); font-size: 11px; font-weight: 800; line-height: 1.4; }
+  .kpi-value { margin: 12px 0 5px; font-size: clamp(25px, 3vw, 35px); font-weight: 850; letter-spacing: -.055em; }
+  .kpi-note { color: #738197; font-size: 10px; line-height: 1.5; }
+  .section { padding: 18px 0 30px; }
+  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 15px; }
+  .section-heading p { max-width: 650px; margin: 0; color: var(--muted); font-size: 13px; }
+  .chart-card { overflow: hidden; padding: 9px 10px 2px; }
+  .chart-caption { display: flex; justify-content: space-between; gap: 18px; padding: 10px 14px 13px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+  .chart-caption strong { color: var(--ink); }
+  .panel { padding: 20px; }
+  .insight { margin: 12px 0 0; padding: 13px 15px; border-left: 3px solid var(--pink); border-radius: 0 10px 10px 0; background: #fff; color: #45546a; font-size: 13px; line-height: 1.65; }
+  .data-note { margin: 18px 0 32px; border-left: 4px solid var(--teal); border-radius: 0 10px 10px 0; background: #e8f5fb; color: #42566a; font-size: 12px; line-height: 1.7; padding: 13px 16px; }
+  .data-note a { color: #075985; font-weight: 750; }
+  .controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 18px; margin: 15px 0; }
+  .control-label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+  select { min-width: 190px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; padding: 10px 32px 10px 12px; }
+  .table-wrap { max-height: 580px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 11px 12px; border-bottom: 1px solid #e8edf3; text-align: left; white-space: nowrap; }
+  th { position: sticky; top: 0; z-index: 1; background: #f1f5f9; color: #526176; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+  td.num, th.num { text-align: right; }
+  tbody tr:hover { background: #f8fafc; }
+  .profile-card { padding: 24px; }
+  .profile-card p { margin: 7px 0; }
+  .profile-links { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 22px; margin-top: 20px; }
+  .profile-links a { color: #be185d; font-weight: 700; overflow-wrap: anywhere; }
+  .site-footer { margin-top: 30px; background: var(--navy); color: #d6deea; }
+  .footer-inner { width: min(1160px, calc(100% - 44px)); margin: auto; padding: 22px 0 27px; display: flex; justify-content: space-between; gap: 20px; font-size: 10px; line-height: 1.7; }
+  .footer-inner a { color: #f9a8c4; }
+  .plotly-graph-div { width: 100% !important; }
+  @media (max-width: 980px) {
+    .nav-wrap { align-items: flex-start; flex-direction: column; gap: 9px; padding: 15px 0 12px; }
+    .nav-links { width: 100%; overflow-x: auto; padding-bottom: 3px; }
+    .nav-links a { flex: 0 0 auto; }
+    .hero { padding-top: 42px; }
+    .kpis { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width: 580px) {
+    .wrap, .nav-wrap, .footer-inner { width: min(100% - 28px, 1160px); }
+    .kpis { gap: 8px; }
+    .kpi { min-height: 115px; padding: 13px; }
+    .kpi-value { font-size: 26px; }
+    .section-heading, .footer-inner { align-items: flex-start; flex-direction: column; }
+    .chart-card { padding: 4px 4px 0; }
+    .chart-caption { flex-direction: column; gap: 4px; }
+    .panel, .profile-card { padding: 15px; }
+    .profile-links { grid-template-columns: 1fr; }
+    select { min-width: min(100%, 280px); }
+  }
+</style>
+
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head><body>
+
+<header class="site-header"><div class="nav-wrap">
+  <a class="brand" href="index.html">MLS · Matchbook<span>League evolution, in the match record</span></a>
+  <nav class="nav-links" aria-label="Main navigation"><a href="index.html">Home</a><a href="scoring-xg.html">Scoring &amp; xG</a><a href="messi-impact.html">Messi Impact</a><a href="clubs-dynamics.html">Club &amp; League Dynamics</a><a href="explorer.html">Match Explorer</a><a href="about.html" aria-current="page">About</a></nav>
+</div></header>
+
+  <main>
+<div class="wrap">
+  <section aria-label="Author and project links">
+    <div class="hero"><div class="eyebrow">Project &amp; author</div><h1>About this work</h1>
+      <p class="dek">A match-level study of MLS scoring, club performance and the timing of Lionel Messi’s arrival.</p></div>
+
+<div class="kpis" aria-label="Dataset summary">
+  <article class="kpi"><div class="kpi-label">MLS matches</div><div class="kpi-value">4,088</div><div class="kpi-note">Observed completed matches · 2017–2025</div></article>
+  <article class="kpi"><div class="kpi-label">Goals recorded</div><div class="kpi-value">12,124</div><div class="kpi-note">Home and away score totals in the CSV</div></article>
+  <article class="kpi"><div class="kpi-label">Complete xG matches</div><div class="kpi-value">2,504</div><div class="kpi-note">Both team xG values present; no missing xG imputed</div></article>
+  <article class="kpi"><div class="kpi-label">Inter Miami goals / match change</div><div class="kpi-value">+1.16</div><div class="kpi-note">Before vs. on/after 21 Jul 2023 · 115 vs. 89 team appearances</div></article>
+</div>
+    <div class="profile-card">
+      <div class="eyebrow">Author</div><h2>Angel Emilio Frias Arias</h2>
+      <p>Data Science &amp; Analytics student at New College of Florida and a varsity collegiate soccer forward.</p>
+      <div class="profile-links">
+        <div><strong>Contact</strong><br><a href="mailto:a.friasarias28@ncf.edu">a.friasarias28@ncf.edu</a></div>
+        <div><strong>GitHub account</strong><br><a href="https://github.com/boloboloaf-hub">github.com/boloboloaf-hub</a></div>
+        <div><strong>Project repository</strong><br><a href="https://github.com/boloboloaf-hub/mls-messi-growth">github.com/boloboloaf-hub/mls-messi-growth</a></div>
+        <div><strong>Institution</strong><br><a href="https://www.ncf.edu">New College of Florida</a></div>
+      </div>
+    </div>
+  </section>
+  <section class="section" aria-label="Data source">
+    <div class="eyebrow">Data source</div><h2>Observed match records</h2>
+    <div class="data-note">The observational dataset <code>mls_matches.csv</code> contains 4,088 MLS matches across 9 seasons (2017–2025), with 12,124 goals and 2,504 matches with complete paired expected-goals records. Scores extend through 2025; xG is present only where both source values were recorded, and no missing values are estimated. <a href="https://github.com/boloboloaf-hub/mls-messi-growth/blob/main/mls_matches.csv">View the source data file</a>.</div>
+  </section>
+</div></main>
+  <footer class="site-footer"><div class="footer-inner">
+    <div>MLS Matchbook · Observational analysis, 2017–2025.<br>Match outcomes describe what happened; they do not establish why.</div>
+    <div>Dataset: <a href="https://github.com/boloboloaf-hub/mls-messi-growth/blob/main/mls_matches.csv">mls_matches.csv</a>
+    · <a href="https://github.com/boloboloaf-hub/mls-messi-growth">Project repository</a></div>
+  </div></footer>
+</body></html>
